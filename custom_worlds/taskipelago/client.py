@@ -325,6 +325,8 @@ class TaskipelagoContext(CommonClient.CommonContext):
         self._last_item_index = 0
 
         self.seed_name = ""
+        self.sent_item_names = []
+        self.sent_player_names = []
 
         # persist received notification state
         self._notify_state_path = Path.cwd() / "taskipelago_notify_state.json"
@@ -350,6 +352,9 @@ class TaskipelagoContext(CommonClient.CommonContext):
         self.death_link_enabled = bool(self.slot_data.get("death_link_enabled", False))
 
         self.seed_name = str(self.slot_data.get("seed_name", "") or "")
+
+        self.sent_item_names = list(self.slot_data.get("sent_item_names", []))
+        self.sent_player_names = list(self.slot_data.get("sent_player_names", []))
 
         if callable(self.on_state_changed):
             self.on_state_changed()
@@ -1572,6 +1577,127 @@ class TaskipelagoApp(tk.Tk):
             pass
 
         return f"Player {slot_id}"
+    
+    def _get_sent_notification_info(self, task_index: int):
+        ctx = getattr(self, "ctx", None)
+        if not ctx:
+            return None, "Unknown"
+
+        try:
+            sent_item_names = list(getattr(ctx, "sent_item_names", []) or [])
+        except Exception:
+            sent_item_names = []
+
+        try:
+            sent_player_names = list(getattr(ctx, "sent_player_names", []) or [])
+        except Exception:
+            sent_player_names = []
+
+        item_name = None
+        recipient_name = "Unknown"
+
+        if 0 <= task_index < len(sent_item_names):
+            item_name = str(sent_item_names[task_index]).strip() or None
+
+        if 0 <= task_index < len(sent_player_names):
+            recipient_name = str(sent_player_names[task_index]).strip() or "Unknown"
+
+        return item_name, recipient_name
+    
+    def _resolve_location_item_and_player(self, location_id: int):
+        """
+        Resolve (item_id, player_id) for a location using the best available source.
+
+        Order:
+        1) existing local/cache-based lookup
+        2) authoritative ctx.locations_info mapping if available
+        """
+        item_id, player_id = self._get_location_item_and_player(location_id)
+        if item_id is not None and player_id is not None:
+            return item_id, player_id
+
+        ctx = getattr(self, "ctx", None)
+        if not ctx:
+            return item_id, player_id
+
+        try:
+            locations_info = getattr(ctx, "locations_info", None)
+            if locations_info is not None:
+                li = None
+
+                if isinstance(locations_info, dict):
+                    li = locations_info.get(location_id)
+                elif hasattr(locations_info, "get"):
+                    li = locations_info.get(location_id)
+
+                if li is not None:
+                    # tuple/list
+                    if isinstance(li, (tuple, list)) and len(li) >= 2:
+                        item_id = li[0] if item_id is None else item_id
+                        player_id = li[1] if player_id is None else player_id
+                        return item_id, player_id
+
+                    # dict
+                    if isinstance(li, dict):
+                        if item_id is None:
+                            item_id = li.get("item")
+                        if player_id is None:
+                            player_id = li.get("player")
+                        return item_id, player_id
+
+                    # object
+                    if item_id is None:
+                        item_id = getattr(li, "item", None)
+                    if player_id is None:
+                        player_id = getattr(li, "player", None)
+                    return item_id, player_id
+        except Exception:
+            pass
+
+        return item_id, player_id
+    
+    def _resolve_player_name(self, player_id) -> str:
+        ctx = getattr(self, "ctx", None)
+        if ctx is None or player_id is None:
+            return "Unknown"
+
+        # 1) direct player_names map
+        try:
+            player_names = getattr(ctx, "player_names", None)
+            if isinstance(player_names, dict):
+                name = player_names.get(player_id)
+                if name:
+                    return str(name)
+            elif hasattr(player_names, "get"):
+                name = player_names.get(player_id)
+                if name:
+                    return str(name)
+        except Exception:
+            pass
+
+        # 2) slot_info map
+        try:
+            slot_info = getattr(ctx, "slot_info", None)
+            if isinstance(slot_info, dict):
+                info = slot_info.get(player_id)
+            elif hasattr(slot_info, "get"):
+                info = slot_info.get(player_id)
+            else:
+                info = None
+
+            if info is not None:
+                name = getattr(info, "name", None)
+                if name:
+                    return str(name)
+
+                if isinstance(info, dict):
+                    name = info.get("name")
+                    if name:
+                        return str(name)
+        except Exception:
+            pass
+
+        return "Unknown"
 
     def _get_location_item_and_player(self, loc_id: int):
         """
@@ -1687,12 +1813,10 @@ class TaskipelagoApp(tk.Tk):
             now = time.time()
             sent_key = ("sent", reward_loc_id)
             if sent_key != self._last_sent_key or (now - self._last_sent_seen_at) > 1.0:
-                item_id, recipient_id = self._get_location_item_and_player(reward_loc_id)
-                reward_name = self._resolve_item_name_for_sent(item_id, task_index)
+                reward_name, recipient_name = self._get_sent_notification_info(task_index)
 
-                # Skip if filler
-                if reward_name and reward_name.strip() != FILLER_TOKEN:
-                    recipient_name = self._slot_name_from_id(recipient_id) if recipient_id is not None else "Unknown"
+                # Skip filler and skip unknown/empty authoritative item names
+                if reward_name and reward_name.strip() and reward_name.strip() != FILLER_TOKEN:
                     task_label = None
                     try:
                         if 0 <= task_index < len(self.ctx.tasks):
@@ -1702,8 +1826,8 @@ class TaskipelagoApp(tk.Tk):
 
                     body_lines = []
                     if task_label:
-                        body_lines.append(f"Task {task_index+1}: {task_label}")
-                        body_lines.append("")  # spacer line
+                        body_lines.append(f"Task {task_index + 1}: {task_label}")
+                        body_lines.append("")
                     body_lines.append(str(reward_name))
                     body_lines.append("")
                     body_lines.append(f"(sent to {recipient_name})")

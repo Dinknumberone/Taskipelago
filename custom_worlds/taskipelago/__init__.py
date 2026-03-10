@@ -411,6 +411,40 @@ class TaskipelagoWorld(World):
         )
 
     def fill_slot_data(self) -> Dict[str, Any]:
+        sent_item_names: List[str] = []
+        sent_player_names: List[str] = []
+
+        for loc_name in getattr(self, "_reward_location_names", []):
+            item_name = ""
+            player_name = "Unknown"
+
+            try:
+                loc = self.multiworld.get_location(loc_name, self.player)
+            except Exception:
+                loc = None
+
+            if loc is not None:
+                item = getattr(loc, "item", None)
+                if item is not None:
+                    try:
+                        raw_item_name = getattr(item, "name", None)
+                        if raw_item_name is not None:
+                            item_name = str(raw_item_name).strip()
+                    except Exception:
+                        pass
+
+                    try:
+                        recipient_player = getattr(item, "player", None)
+                        if recipient_player is not None:
+                            player_name = self.multiworld.player_name.get(
+                                recipient_player, f"Player {recipient_player}"
+                            )
+                    except Exception:
+                        pass
+
+            sent_item_names.append(item_name)
+            sent_player_names.append(player_name)
+
         return {
             "tasks": list(self._tasks),
             "rewards": list(self._rewards),
@@ -420,7 +454,10 @@ class TaskipelagoWorld(World):
             "reward_prereqs": list(getattr(self, "_raw_reward_prereqs", [])),
             "lock_prereqs": bool(self._lock_prereqs),
 
-            "death_link_pool": [str(x).strip() for x in self.options.death_link_pool.value if str(x).strip()],
+            "death_link_pool": [
+                str(x).strip() for x in self.options.death_link_pool.value
+                if str(x).strip()
+            ],
             "death_link_weights": list(getattr(self, "_death_link_weights", [])),
             "death_link_amnesty": int(getattr(self, "_death_link_amnesty", 0)),
             "death_link_enabled": bool(self.options.death_link),
@@ -429,7 +466,8 @@ class TaskipelagoWorld(World):
             "base_complete_location_id": BASE_COMPLETE_LOC_ID,
             "base_item_id": BASE_ITEM_ID,
 
-            "seed_name": str(getattr(self.multiworld, "seed_name", "") or ""),
+            "sent_item_names": sent_item_names,
+            "sent_player_names": sent_player_names,
         }
 
 
