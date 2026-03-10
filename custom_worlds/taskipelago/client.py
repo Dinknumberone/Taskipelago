@@ -219,8 +219,21 @@ class TaskRow:
         self.remove_btn.grid(row=r, column=7, padx=(0, 0), pady=4)
 
     def remove(self):
-        for w in (self.num_label, self.task_entry, self.reward_entry, self.prereq_entry, self.reward_prereq_entry, self.reward_type_cb, self.filler_cb, self.remove_btn):
-            self._on_remove(self)
+        for w in (
+            self.num_label,
+            self.task_entry,
+            self.reward_entry,
+            self.prereq_entry,
+            self.reward_prereq_entry,
+            self.reward_type_cb,
+            self.filler_cb,
+            self.remove_btn,
+        ):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+        self._on_remove(self)
 
     def on_filler_toggle(self):
         if self.filler_var.get():
@@ -859,7 +872,7 @@ class TaskipelagoApp(tk.Tk):
         for i, r in enumerate(self.task_rows, start=1):
             r.index = i
             r.num_label.config(text=str(i))
-            r._grid()  # re-place widgets on the correct grid row
+            r._grid() # re-place widgets on the correct grid row
     
     def _clear_task_rows(self):
         # Destroy existing widgets for all task rows and forget them

@@ -1,10 +1,10 @@
-# Version 0.6
-Fixes the bugs in 0.5, and lays the groundwork for major new features to come soon (i.e. boolean logic, pomodoro, etc.)
+# Version 0.5.1
+Hotfix for critical bugs in version 0.5
 
 ## Features, Improvements, and Changes
-* 
+* Added tooltips to yaml generator (TODO)
 
 ## Bug Fixes
 * Notification state now hashed by seed to avoid collision when creating more than one apworld with the same slotname and server.
 * Fixed (silly) bug in item sent notifications so it now actually works and doesn't fall back to the local cache ever because that doesn't make sense...
-* 
+* Fix remove row in yaml generator

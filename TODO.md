@@ -8,7 +8,7 @@ take that Jira.
 * Optimize, it can be quite laggy when lots of tasks.
 * Add proper archipelago text console window (separate tab?)
 * Notification history
-* tasklock integration to force all task locks to be in the taskipelago world (generate tasklock yaml with plando logic included, warn user to enable plando items in host.yaml)
+* Tasklock integration to force all task locks to be in the taskipelago world (generate tasklock yaml with plando logic included, warn user to enable plando items in host.yaml)
 * Designate a "Goal" task
 * Lots of cleaning & make it follow apworld standards better
 * Region-based logic with percentage completion to unlock next region
