@@ -207,7 +207,7 @@ class TaskRow:
         self._grid()
 
     def _grid(self):
-        r = self.index  # NOTE: header is row 0, so tasks start at row 1
+        r = self.index + 1  # header is row 0, hint row is 1, tasks start at row 2
         self.num_label.grid(row=r, column=0, padx=(0, 8), sticky="w", pady=4)
         self.task_entry.grid(row=r, column=1, padx=(0, 8), sticky="ew", pady=4)
         self.reward_entry.grid(row=r, column=2, padx=(0, 8), sticky="ew", pady=4)
@@ -749,6 +749,16 @@ class TaskipelagoApp(tk.Tk):
         # filler + remove placeholders (no header text)
         ttk.Label(tbl, text="").grid(row=0, column=6, sticky="w")
         ttk.Label(tbl, text="").grid(row=0, column=7, sticky="w")
+
+        # Muted instruction text
+        ttk.Label(tbl, text="", style="Muted.TLabel").grid(row=1, column=0, sticky="w", padx=(0, 8))
+        ttk.Label(tbl, text="Location", style="Muted.TLabel").grid(row=1, column=1, sticky="w", padx=(0, 8))
+        ttk.Label(tbl, text="Item", style="Muted.TLabel").grid(row=1, column=2, sticky="w", padx=(0, 8))
+        ttk.Label(tbl, text="1   or   1, 2, 5", style="Muted.TLabel").grid(row=1, column=3, sticky="w", padx=(0, 8))
+        ttk.Label(tbl, text="1   or   1, 2, 5", style="Muted.TLabel").grid(row=1, column=4, sticky="w", padx=(0, 8))
+        ttk.Label(tbl, text="", style="Muted.TLabel").grid(row=1, column=5, sticky="w", padx=(0, 8))
+        ttk.Label(tbl, text="", style="Muted.TLabel").grid(row=1, column=6, sticky="w")
+        ttk.Label(tbl, text="", style="Muted.TLabel").grid(row=1, column=7, sticky="w")
 
         # Column stretch/weights (optional but recommended)
         tbl.grid_columnconfigure(0, weight=0)  # #

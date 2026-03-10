@@ -2,7 +2,7 @@
 Hotfix for critical bugs in version 0.5
 
 ## Features, Improvements, and Changes
-* Added tooltips to yaml generator (TODO)
+* Added filler text for clarity in yaml generator
 
 ## Bug Fixes
 * Notification state now hashed by seed to avoid collision when creating more than one apworld with the same slotname and server.
