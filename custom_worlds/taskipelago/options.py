@@ -48,6 +48,9 @@ class RewardPrereqs(OptionList):
     default: List[str] = []
 
 class LockPreqreqs(Toggle):
+    """
+    If set to off, the client is able to mark off checks that would normally be out-of-logic. This otherwise does not affect multiworld logic.
+    """
     display_name = "Lock Tasks Behind Prereqs"
     default = 1
 
