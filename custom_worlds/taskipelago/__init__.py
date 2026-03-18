@@ -197,24 +197,23 @@ class TaskipelagoWorld(World):
         self._forced_progression_rewards = forced_prog
 
         lock = bool(getattr(self.options, "lock_prereqs"))
-        if lock:
-            # cycle detect in prereq graph
-            visiting = set()
-            visited = set()
+        # cycle detect in prereq graph
+        visiting = set()
+        visited = set()
 
-            def dfs(v: int):
-                if v in visiting:
-                    raise Exception("Taskipelago: prereq graph contains a cycle. Fix your prereqs.")
-                if v in visited:
-                    return
-                visiting.add(v)
-                for u in parsed_prereqs[v]:
-                    dfs(u)
-                visiting.remove(v)
-                visited.add(v)
+        def dfs(v: int):
+            if v in visiting:
+                raise Exception("Taskipelago: prereq graph contains a cycle. Fix your prereqs.")
+            if v in visited:
+                return
+            visiting.add(v)
+            for u in parsed_prereqs[v]:
+                dfs(u)
+            visiting.remove(v)
+            visited.add(v)
 
-            for i in range(n):
-                dfs(i)
+        for i in range(n):
+            dfs(i)
 
         # store
         self._tasks = tasks
@@ -337,8 +336,6 @@ class TaskipelagoWorld(World):
             )
 
     def set_rules(self) -> None:
-        if not self._lock_prereqs:
-            return
 
         n = len(self._tasks)
 
