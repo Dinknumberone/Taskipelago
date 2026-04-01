@@ -12,6 +12,8 @@ from tkinter import ttk
 import json
 import yaml
 
+import certifi
+
 import CommonClient
 from NetUtils import Endpoint, decode
 
@@ -571,7 +573,7 @@ async def server_loop(ctx: TaskipelagoContext, address: str):
 
     for url in candidates:
         try:
-            ssl_ctx = ssl.create_default_context() if url.startswith("wss://") else None
+            ssl_ctx = ssl.create_default_context(cafile=certifi.where()) if url.startswith("wss://") else None
 
             socket = await websockets.connect(
                 url,
