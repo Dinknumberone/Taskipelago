@@ -5,10 +5,8 @@ what are you gonna do about it?
 take that Jira.
 
 ### High Prio:
-* Issue where collected checks prevent you from completing tasks
 * Designate a "Goal" task
 * Boolean logic
-* Item names being better
 
 ### Medium Prio:
 * Notification history
