@@ -21,6 +21,77 @@ FILLER_TOKEN = "nothing here, get pranked nerd"
 REWARD_TYPE_VALUES = ("junk", "useful", "progression", "trap")
 DEFAULT_REWARD_TYPE = "useful"
 
+# parsing help
+def _eval_prereq_expr(text: str, leaf_fn) -> bool:
+    """
+    Evaluate a boolean prereq expression string client-side.
+    leaf_fn(idx_1based) -> bool
+    Supports: integers, &&, ||, ',', parentheses.
+    """
+    text = text.strip()
+    if not text:
+        return True
+
+    # Tokenize
+    tokens = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c.isspace():
+            i += 1
+        elif c.isdigit():
+            j = i
+            while j < len(text) and text[j].isdigit():
+                j += 1
+            tokens.append(int(text[i:j]))
+            i = j
+        elif text[i:i+2] in ("&&", "||"):
+            tokens.append(text[i:i+2])
+            i += 2
+        elif c in ("(", ")", ","):
+            tokens.append(c)
+            i += 1
+        else:
+            raise ValueError(f"Unexpected char: {c}")
+
+    pos = [0]
+
+    def peek():
+        return tokens[pos[0]] if pos[0] < len(tokens) else None
+
+    def consume():
+        t = tokens[pos[0]]; pos[0] += 1; return t
+
+    def parse_or():
+        left = parse_and()
+        results = [left]
+        while peek() == "||":
+            consume()
+            results.append(parse_and())
+        return any(results)
+
+    def parse_and():
+        left = parse_atom()
+        results = [left]
+        while peek() in ("&&", ","):
+            consume()
+            results.append(parse_atom())
+        return all(results)
+
+    def parse_atom():
+        tok = peek()
+        if tok == "(":
+            consume()
+            val = parse_or()
+            consume()  # ")"
+            return val
+        if isinstance(tok, int):
+            consume()
+            return leaf_fn(tok)
+        raise ValueError(f"Unexpected token: {tok}")
+
+    return parse_or()
+
 # ----------------------------
 # Dark theme helpers (ttk)
 # ----------------------------
@@ -1492,22 +1563,29 @@ class TaskipelagoApp(tk.Tk):
                 spacer.pack(fill="x")
 
     def _prereqs_satisfied(self, prereq_text: str, checked_locations: set) -> bool:
-        """
-        prereq_text: "1,2,5" meaning tasks 1/2/5 must be completed first.
-        Completion is represented by COMPLETE locations being checked.
-        """
+        """Best-effort client-side prereq check for UI lock hints."""
         if not prereq_text or self.ctx.base_complete_location_id is None:
             return True
-        parts = [p.strip() for p in prereq_text.split(",") if p.strip()]
-        for p in parts:
-            try:
-                idx_1based = int(p)
-            except ValueError:
-                continue
-            loc = self.ctx.base_complete_location_id + (idx_1based - 1)
-            if loc not in checked_locations:
-                return False
-        return True
+        try:
+            return _eval_prereq_expr(
+                prereq_text,
+                lambda idx_1: (self.ctx.base_complete_location_id + idx_1 - 1) in checked_locations
+            )
+        except Exception:
+            return True  # if we can't parse, don't lock the UI
+
+    def _reward_prereqs_satisfied(self, prereq_text: str, checked_locations: set) -> bool:
+        if not prereq_text:
+            return True
+        have = self._received_item_ids()
+        base = getattr(self.ctx, "base_item_id", None)
+        try:
+            return _eval_prereq_expr(
+                prereq_text,
+                lambda idx_1: (isinstance(base, int) and (base + idx_1 - 1) in have)
+            )
+        except Exception:
+            return True
     
     def _received_item_ids(self) -> set:
         """
@@ -1540,46 +1618,6 @@ class TaskipelagoApp(tk.Tk):
                 if isinstance(it[0], int):
                     out.add(it[0])
         return out
-
-
-    def _reward_prereqs_satisfied(self, prereq_text: str, checked_locations: set) -> bool:
-        """
-        prereq_text: "1,2,5" meaning Reward #1/#2/#5 must have been obtained.
-        Prefer checking received item IDs if base_item_id is present.
-        Fallback: treat reward locations being checked as satisfying the reward prereq.
-        """
-        if not prereq_text:
-            return True
-
-        parts = [p.strip() for p in prereq_text.split(",") if p.strip()]
-
-        base_item_id = getattr(self.ctx, "base_item_id", None)
-        if isinstance(base_item_id, int):
-            have = self._received_item_ids()
-            for p in parts:
-                try:
-                    idx_1based = int(p)
-                except ValueError:
-                    continue
-                item_id = base_item_id + (idx_1based - 1)
-                if item_id not in have:
-                    return False
-            return True
-
-        # Fallback: if we don't know item ids, approximate with reward locations checked/pending.
-        if self.ctx.base_reward_location_id is None:
-            return True
-
-        for p in parts:
-            try:
-                idx_1based = int(p)
-            except ValueError:
-                continue
-            loc = self.ctx.base_reward_location_id + (idx_1based - 1)
-            if (loc not in checked_locations) and (loc not in getattr(self, "pending_reward_locations", set())):
-                return False
-        return True
-
 
     def _reward_prereq_display(self, prereq_text: str) -> str:
         """

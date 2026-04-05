@@ -21,6 +21,7 @@ from .locations import (
     TaskipelagoLocation,
 )
 from .options import TaskipelagoOptions
+from .prereq_parser import collect_leaves, parse_prereq, Node
 from .rules import set_rules as _set_rules
 
 
@@ -46,9 +47,9 @@ class TaskipelagoWorld(World):
     _rewards: List[str]
     _reward_types: List[str]
     _raw_prereqs: List[str]
-    _parsed_prereqs: List[List[int]]
+    _parsed_prereqs: List[Node | None]
     _raw_reward_prereqs: List[str]
-    _parsed_reward_prereqs: List[List[int]]
+    _parsed_reward_prereqs: List[Node | None]
     _forced_progression_rewards: set
     _lock_prereqs: bool
     _reward_location_names: List[str]
@@ -123,57 +124,45 @@ class TaskipelagoWorld(World):
             raw_prereqs += [""] * (n - len(raw_prereqs))
         raw_prereqs = raw_prereqs[:n]
 
-        parsed_prereqs: List[List[int]] = []
+        parsed_prereqs = []
         for i, txt in enumerate(raw_prereqs):
-            reqs = _parse_prereq_list(txt, i, n, "task prereq")
-            # No self-references.
-            if (i) in reqs:
+            ast = parse_prereq(txt, n, i, "task prereq")
+            if ast is not None and i in collect_leaves(ast):
                 raise Exception(f"Taskipelago: task {i + 1} cannot require itself.")
-            parsed_prereqs.append(reqs)
+            parsed_prereqs.append(ast)
 
         # Cycle detection via DFS.
         _assert_no_cycles(parsed_prereqs, n)
 
-         # --- Parse goal tasks ---
-        raw_goal = [str(x).strip() for x in list(self.options.goal_tasks.value or []) if str(x).strip()]
-        goal_indices: set[int] = set()
-        for entry in raw_goal:
-            for part in entry.split(","):
-                part = part.strip()
-                if not part:
-                    continue
-                try:
-                    idx_1 = int(part)
-                except ValueError:
-                    raise Exception(f"Taskipelago: invalid goal_tasks entry '{part}'. Must be integers.")
-                if idx_1 < 1 or idx_1 > n:
-                    raise Exception(f"Taskipelago: goal_tasks entry '{idx_1}' is out of range (1..{n}).")
-                goal_indices.add(idx_1 - 1)  # store 0-based
-        self._goal_indices = goal_indices  # empty set = all tasks required
-
         # --- Parse reward prereqs ---
-        raw_reward_prereqs = [
-            str(x).strip() for x in list(self.options.reward_prereqs.value or [])
-        ]
+        raw_reward_prereqs = [str(x).strip() for x in list(self.options.reward_prereqs.value or [])]
         if len(raw_reward_prereqs) < n:
             raw_reward_prereqs += [""] * (n - len(raw_reward_prereqs))
         raw_reward_prereqs = raw_reward_prereqs[:n]
 
-        parsed_reward_prereqs: List[List[int]] = []
+        parsed_reward_prereqs = []
         for i, txt in enumerate(raw_reward_prereqs):
-            parsed_reward_prereqs.append(_parse_prereq_list(txt, i, n, "reward prereq"))
+            parsed_reward_prereqs.append(parse_prereq(txt, n, i, "reward prereq"))
+
+        # --- Parse goal tasks ---
+        raw_goal_parts = [str(x).strip() for x in list(self.options.goal_tasks.value or []) if str(x).strip()]
+        raw_goal = ", ".join(raw_goal_parts)  # rejoin into single expression
+        goal_ast = parse_prereq(raw_goal, n, 0, "goal_tasks") if raw_goal else None
+        self._goal_ast = goal_ast
+        # 0-based indices of all tasks referenced in goal (for slot data)
+        self._goal_indices = sorted(set(collect_leaves(goal_ast))) if goal_ast else []
 
         # Any reward referenced as a prereq must be progression so logic can rely on it.
         forced_prog: set = set()
-        for reqs in parsed_prereqs:
-            forced_prog.update(reqs)
-        for reqs in parsed_reward_prereqs:
-            forced_prog.update(reqs)
+        for ast in parsed_prereqs:
+            forced_prog.update(collect_leaves(ast))
+        for ast in parsed_reward_prereqs:
+            forced_prog.update(collect_leaves(ast))
 
         self._raw_prereqs = raw_prereqs
-        self._parsed_prereqs = parsed_prereqs
+        self._parsed_prereqs = parsed_prereqs       # List[Node | None]
         self._raw_reward_prereqs = raw_reward_prereqs
-        self._parsed_reward_prereqs = parsed_reward_prereqs
+        self._parsed_reward_prereqs = parsed_reward_prereqs  # List[Node | None]
         self._forced_progression_rewards = forced_prog
         self._lock_prereqs = bool(self.options.lock_prereqs)
 
@@ -246,14 +235,25 @@ class TaskipelagoWorld(World):
             )
 
         # Goal condition: either specific goal tasks, or all tasks by default.
-        if self._goal_indices:
-            goal_locs = [
-                self.multiworld.get_location(self._complete_location_names[i], self.player)
-                for i in self._goal_indices
-            ]
-            self.multiworld.completion_condition[self.player] = lambda state: all(
-                loc in state.locations_checked for loc in goal_locs
-            )
+        if self._goal_ast is not None:
+            from .prereq_parser import eval_node
+            complete_names = self._complete_location_names
+            # Goal: the boolean expression over complete locations
+            complete_locs = {
+                i: self.multiworld.get_location(complete_names[i], self.player)
+                for i in collect_leaves(self._goal_ast)
+            }
+            def goal_condition(state, ast=self._goal_ast, locs=complete_locs):
+                # Reuse eval_node but over locations_checked instead of items
+                def loc_checked(node):
+                    if isinstance(node, int):
+                        return locs[node] in state.locations_checked
+                    op, children = node
+                    if op == "and":
+                        return all(loc_checked(c) for c in children)
+                    return any(loc_checked(c) for c in children)
+                return loc_checked(ast)
+            self.multiworld.completion_condition[self.player] = goal_condition
         else:
             reward_locs = [
                 self.multiworld.get_location(name, self.player)
@@ -338,8 +338,9 @@ def _parse_prereq_list(txt: str, task_index: int, n: int, label: str) -> List[in
     return reqs
 
 
-def _assert_no_cycles(parsed_prereqs: List[List[int]], n: int) -> None:
-    """DFS cycle detection on the task prereq graph."""
+def _assert_no_cycles(parsed_prereqs: list, n: int) -> None:
+    """DFS Cycle detection on the prereq graph. Raises if a cycle is found, otherwise does nothing."""
+    from .prereq_parser import collect_leaves
     visiting: set = set()
     visited: set = set()
 
@@ -349,7 +350,7 @@ def _assert_no_cycles(parsed_prereqs: List[List[int]], n: int) -> None:
         if v in visited:
             return
         visiting.add(v)
-        for u in parsed_prereqs[v]:
+        for u in collect_leaves(parsed_prereqs[v]):
             dfs(u)
         visiting.discard(v)
         visited.add(v)
