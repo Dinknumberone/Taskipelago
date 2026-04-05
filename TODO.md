@@ -5,7 +5,6 @@ what are you gonna do about it?
 take that Jira.
 
 ### High Prio:
-* Designate a "Goal" task
 * Boolean logic
 
 ### Medium Prio:
