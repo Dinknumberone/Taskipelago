@@ -956,8 +956,7 @@ class TaskipelagoApp(tk.Tk):
             if not t:
                 continue
             if not rw:
-                messagebox.showerror("Error", "Each task must have a reward or be marked Filler.")
-                return
+                filler = True
 
             tasks.append(t)
             rewards.append(FILLER_TOKEN if filler else rw)
