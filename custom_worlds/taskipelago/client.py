@@ -1368,11 +1368,10 @@ class TaskipelagoApp(tk.Tk):
         lock_prereqs = bool(getattr(self.ctx, "lock_prereqs", False))
 
         for i, task_name in enumerate(self.ctx.tasks):
-            reward_loc_id = self.ctx.base_reward_location_id + i
             complete_loc_id = self.ctx.base_complete_location_id + i
 
             # Consider "completed" when reward location is checked (the one that sends items)
-            completed = (complete_loc_id in checked) or (reward_loc_id in checked)
+            completed = complete_loc_id in checked
 
             # task prereqs satisfied based on COMPLETE locations (completion tokens)
             task_prereq_ok = True
