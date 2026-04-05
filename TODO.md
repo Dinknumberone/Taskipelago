@@ -4,12 +4,20 @@ so yeah i'm dumping todos here in a big sloppy mess
 what are you gonna do about it?
 take that Jira.
 
-* Fix it reloading every time you complete a task
-* Optimize, it can be quite laggy when lots of tasks.
-* Add proper archipelago text console window (separate tab?)
-* Notification history
-* Tasklock integration to force all task locks to be in the taskipelago world (generate tasklock yaml with plando logic included, warn user to enable plando items in host.yaml)
+* Pomodoro mode
+
+High Prio:
+* Issue where collected checks prevent you from completing tasks
 * Designate a "Goal" task
-* Lots of cleaning & make it follow apworld standards better
-* Region-based logic with percentage completion to unlock next region
 * Boolean logic
+* Item names being better
+
+Medium Prio:
+* Notification history
+* Optimize, it can be quite laggy when lots of tasks.
+* Fix it reloading every time you complete a task
+
+Low Prio:
+* Tasklock integration to force all task locks to be in the taskipelago world (generate tasklock yaml with plando logic included, warn user to enable plando items in host.yaml)
+* Add proper archipelago text console window (separate tab?)
+* Region-based logic with percentage completion to unlock next region (I don't remember what I meant by this)
