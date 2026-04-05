@@ -5,12 +5,13 @@ what are you gonna do about it?
 take that Jira.
 
 ### High Prio:
-* Boolean logic
+* Boolean logic (finish testing)
 
 ### Medium Prio:
 * Notification history
 * Optimize, it can be quite laggy when lots of tasks.
 * Fix it reloading every time you complete a task
+* add [1, 2, 3]x3 type syntax in bool logic (common use case)
 
 ### Low Prio:
 * Tasklock integration to force all task locks to be in the taskipelago world (generate tasklock yaml with plando logic included, warn user to enable plando items in host.yaml)
